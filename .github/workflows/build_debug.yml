@@ -1,7 +1,7 @@
 # .github/workflows/build_debug.yml — сборка debug-APK Shannon Modem Tweaks.
 # Актуальная версия. Что изменилось:
-#   • создаётся пустой local.properties — без него Gradle падал на этапе конфигурации
-#     (No such file or directory на app/build.gradle.kts:58);
+#   • local.properties создаётся уже ЗАПОЛНЕННЫМ: пустой файл давал
+#     "signing.storeFilePath must not be null" на app/build.gradle.kts:60;
 #   • SENTRY_AUTH_TOKEN="" отключает отправку source context в Sentry во время сборки;
 #   • убраны 3 повтора — причина падений была не в 429, а в конфигурации.
 
@@ -38,10 +38,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # ГЛАВНОЕ ИСПРАВЛЕНИЕ: пустой local.properties.
-      # Он в .gitignore, но app/build.gradle.kts читает его при конфигурации проекта.
-      - name: Create empty local.properties
-        run: touch local.properties
+      # ГЛАВНОЕ ИСПРАВЛЕНИЕ: local.properties с заглушками подписи.
+      # Файл в .gitignore, но app/build.gradle.kts читает его при конфигурации:
+      #   storeFile = file(properties.getProperty("signing.storeFilePath"))
+      # Пустой файл не годится — getProperty вернёт null и Kotlin упадёт.
+      # Значения фиктивные: assembleDebug подписывается debug-ключом, /tmp/keystore не читается.
+      - name: Create local.properties with dummy signing values
+        run: |
+          cat > local.properties <<'EOF'
+          signing.storeFilePath=/tmp/keystore
+          signing.storePassword=android
+          signing.keyAlias=android
+          signing.keyPassword=android
+          EOF
+          echo "--- local.properties ---"
+          cat local.properties
 
       - name: Make gradlew executable
         run: chmod +x gradlew
