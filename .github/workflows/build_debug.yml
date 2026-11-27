@@ -1,10 +1,9 @@
-# Сборка debug-APK Shannon Modem Tweaks (устойчивая к 429 от Maven Central).
-# Куда положить: .github/workflows/build_debug.yml в своём форке.
-# Отличия от прошлой версии:
-#   • gradle.properties пишется на месте (больше параллельных запросов не нужно,
-#     --no-daemon уже есть) — плюс отключён build-cache, который долбит репозитории;
-#   • сборка повторяется до 3 раз с паузой: 429 — временная ошибка, часто проходит сама;
-#   • перед сборкой печатается состояние сети до Maven Central (для диагностики).
+# .github/workflows/build_debug.yml — сборка debug-APK Shannon Modem Tweaks.
+# Актуальная версия. Что изменилось:
+#   • создаётся пустой local.properties — без него Gradle падал на этапе конфигурации
+#     (No such file or directory на app/build.gradle.kts:58);
+#   • SENTRY_AUTH_TOKEN="" отключает отправку source context в Sentry во время сборки;
+#   • убраны 3 повтора — причина падений была не в 429, а в конфигурации.
 
 name: Build debug APK
 
@@ -31,41 +30,26 @@ jobs:
           java-version: "17"
           distribution: "temurin"
 
-      # Кэш Gradle включаем только для ~/.gradle/caches: wrapper-кэш иногда даёт битые zip
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
         with:
           path: ~/.gradle/caches/modules-2
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml', '**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
+
+      # ГЛАВНОЕ ИСПРАВЛЕНИЕ: пустой local.properties.
+      # Он в .gitignore, но app/build.gradle.kts читает его при конфигурации проекта.
+      - name: Create empty local.properties
+        run: touch local.properties
 
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Show repositories in use
-        run: |
-          echo "--- settings.gradle.kts (фрагмент) ---"
-          grep -n "maven\|google()\|mavenCentral" settings.gradle.kts || true
-          echo "--- проверка доступности Maven Central ---"
-          curl -s -o /dev/null -w "maven.apache.org → %{http_code}\n" \
-            https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.20/kotlin-stdlib-1.9.20.pom || true
-          curl -s -o /dev/null -w "google-зеркало → %{http_code}\n" \
-            https://maven-central.storage-download.googleapis.com/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.20/kotlin-stdlib-1.9.20.pom || true
-
-      - name: Build debug APK (3 попытки)
-        run: |
-          for i in 1 2 3; do
-            echo "=== Попытка $i из 3 ==="
-            if ./gradlew assembleDebug --no-daemon --stacktrace; then
-              echo "СБОРКА УСПЕШНА"
-              exit 0
-            fi
-            echo "Попытка $i не удалась (вероятно 429). Пауза 60 с и повтор…"
-            sleep 60
-          done
-          echo "Все попытки исчерпаны — смотрите лог выше"
-          exit 1
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+        env:
+          SENTRY_AUTH_TOKEN: ""
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
