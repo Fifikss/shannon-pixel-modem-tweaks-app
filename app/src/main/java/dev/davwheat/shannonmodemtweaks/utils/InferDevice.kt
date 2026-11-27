@@ -72,7 +72,8 @@ object InferDevice {
     PIXEL_10("frankel", "Google Pixel 10"),
     PIXEL_10_PRO("blazer", "Google Pixel 10 Pro"),
     PIXEL_10_PRO_XL("mustang", "Google Pixel 10 Pro XL"),
-    PIXEL_10_PRO_FOLD("rango", "Google Pixel 10 Pro Fold");
+    PIXEL_10_PRO_FOLD("rango", "Google Pixel 10 Pro Fold"),
+    PIXEL_10A("stallion", "Google Pixel 10a");
 
     companion object {
       fun getByCodename(codename: String?): PixelDevice {
